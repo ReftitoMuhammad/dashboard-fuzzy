@@ -3,7 +3,7 @@ import useSWR from 'swr';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
 
@@ -23,26 +23,23 @@ function useDebounce(value, delay) {
 export default function History() {
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
-  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Delay 500ms setelah user berhenti mengetik
-
-  // SWR key akan otomatis diperbarui jika page atau debouncedSearchTerm berubah
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const swrKey = `http://localhost:3001/api/sensor-data?page=${page}&limit=10&search=${debouncedSearchTerm}`;
   const { data, error, isLoading } = useSWR(swrKey, fetcher, { revalidateOnFocus: false });
 
-  // Kembali ke halaman 1 jika hasil pencarian berubah
   useEffect(() => {
     setPage(1);
   }, [debouncedSearchTerm]);
 
   return (
     <div className="w-full">
-      <header className="bg-white shadow-sm">
+      <header className="bg-white dark:bg-gray-800 shadow-sm">
         <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">Riwayat Data Sensor</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Riwayat Data Sensor</h1>
         </div>
       </header>
       <main className="w-full mx-auto p-6">
-        <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
           {/* Fitur Pencarian */}
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -70,7 +67,13 @@ export default function History() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={6} className="text-center">Memuat data...</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-24 text-center">
+                      <div className="flex justify-center items-center">
+                        <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 ) : error ? (
                   <TableRow><TableCell colSpan={6} className="text-center text-red-500">Gagal memuat data</TableCell></TableRow>
                 ) : data?.data?.length === 0 ? (
@@ -93,7 +96,7 @@ export default function History() {
 
           {/* Kontrol Paginasi */}
           <div className="flex items-center justify-between mt-4">
-            <div className="text-sm text-gray-700">
+            <div className="text-sm text-gray-700 dark:text-white">
               Total {data?.pagination?.totalData || 0} data
             </div>
             <div className="flex items-center space-x-2">

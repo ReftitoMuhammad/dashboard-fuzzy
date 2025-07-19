@@ -30,7 +30,7 @@ export default function WeeklySummaryCard() {
   const dominantStatus = getDominantStatus(data.statusDistribution);
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md h-full">
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md h-full">
       <div className="flex items-center space-x-2 border-b pb-3 mb-3">
         <TrendingUp className="h-6 w-6 text-indigo-600" />
         <h3 className="font-bold text-lg">Ringkasan Statistik Mingguan</h3>

@@ -34,7 +34,7 @@ export default function SimulationCard() {
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md h-full">
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md h-full">
       <div className="flex items-center space-x-2 border-b pb-3 mb-4">
         <BrainCircuit className="h-6 w-6 text-indigo-600" />
         <h3 className="font-bold text-lg">Pusat Analisis & Prediksi</h3>
@@ -43,18 +43,18 @@ export default function SimulationCard() {
         {/* Input Sliders */}
         <div>
           <Label htmlFor="tekanan">Tekanan (psi): {inputs.tekanan}</Label>
-          <Input type="range" id="tekanan" name="tekanan" min="20" max="45" value={inputs.tekanan} onChange={handleInputChange} />
+          <Input type="range" id="tekanan" name="tekanan" min="20" max="45" value={inputs.tekanan} onChange={handleInputChange} disabled={isLoading} />
         </div>
         <div>
           <Label htmlFor="suhu">Suhu (°C): {inputs.suhu}</Label>
-          <Input type="range" id="suhu" name="suhu" min="20" max="100" value={inputs.suhu} onChange={handleInputChange} />
+          <Input type="range" id="suhu" name="suhu" min="20" max="100" value={inputs.suhu} onChange={handleInputChange} disabled={isLoading} />
         </div>
         <div>
           <Label htmlFor="ketebalan">Ketebalan (mm): {inputs.ketebalan}</Label>
-          <Input type="range" id="ketebalan" name="ketebalan" min="1" max="10" value={inputs.ketebalan} onChange={handleInputChange} />
+          <Input type="range" id="ketebalan" name="ketebalan" min="1" max="10" value={inputs.ketebalan} onChange={handleInputChange} disabled={isLoading} />
         </div>
         
-        <Button type="submit" className="w-full" disabled={isLoading}>
+        <Button type="submit" className="w-full dark:bg-gray-700 dark:text-white" disabled={isLoading}>
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           Jalankan Analisis
         </Button>
@@ -62,12 +62,12 @@ export default function SimulationCard() {
 
       {/* Hasil Prediksi */}
       {result && (
-        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200">
           <div className="flex items-start space-x-3">
             <BotMessageSquare className="h-6 w-6 text-indigo-500 flex-shrink-0 mt-1" />
             <div>
-              <h4 className="font-semibold text-gray-800">Hasil Analisis:</h4>
-              <p className="text-gray-700 text-sm">{result.narrative || "Tidak ada narasi."}</p>
+              <h4 className="font-semibold text-gray-800 dark:text-white">Hasil Analisis:</h4>
+              <p className="text-gray-700 dark:text-white text-sm">{result.narrative || "Tidak ada narasi."}</p>
             </div>
           </div>
         </div>
