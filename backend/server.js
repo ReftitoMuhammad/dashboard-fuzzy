@@ -16,49 +16,49 @@ const io = new Server(server, {
 });
 
 const port = process.env.PORT || 3001; 
-const fuzzyApiUrl = 'http://127.0.0.1:5000/predict';
+const fuzzyApiUrl = 'http://127.0.0.1:5000';
 
-app.use(cors()); // Mengizinkan Cross-Origin Resource Sharing
-app.use(express.json()); // Mem-parsing body request sebagai JSON
+app.use(cors());
+app.use(express.json()); 
 
-// Konfigurasi koneksi database menggunakan connection pool
 const db = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE
-}).promise(); // Menggunakan .promise() untuk memakai async/await
+}).promise(); 
 
-// --- Helper Function ---
-// Fungsi untuk memetakan integer 'ketebalan' dari DB ke string yang mudah dibaca
 const mapKetebalanToString = (ketebalanInt) => {
-  // Disesuaikan dengan pemetaan di ESP32
-  if (ketebalanInt === 1) return 'Tebal';
-  if (ketebalanInt === 2) return 'Sedang';
-  if (ketebalanInt === 3) return 'Tipis';
-  return 'Tidak Diketahui';
+  // Logika ini harus sesuai dengan yang dikirim ESP32
+  // Jika ESP32 mengirim nilai mentah (misal 1-10), logika ini perlu disesuaikan
+  // Asumsi saat ini: ESP32 mengirim 1, 2, atau 3
+  if (ketebalanInt >= 8) return 'Tebal';
+  if (ketebalanInt > 2) return 'Sedang';
+  return 'Tipis';
 };
 
-// --- API Endpoints ---
-
-// Endpoint dasar untuk mengecek apakah server berjalan
 app.get('/', (req, res) => {
   res.json({ message: 'Selamat datang di API Dashboard Fuzzy Logic!' });
 });
 
-// Endpoint untuk mendapatkan data sensor TERAKHIR
 app.get('/api/latest', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM sensor_data ORDER BY id DESC LIMIT 1');
     if (rows.length === 0) return res.status(404).json({ message: 'Tidak ada data ditemukan.' });
-    const latestData = { ...rows[0], ketebalan: mapKetebalanToString(rows[0].ketebalan) };
+
+    const rawData = rows[0]; // Gunakan variabel yang benar
+    const latestData = { 
+      ...rawData, 
+      ketebalan: mapKetebalanToString(rawData.ketebalan),
+      reasons: JSON.parse(rawData.reasons || '[]')  
+    };
+
     res.json(latestData);
   } catch (error) {
     res.status(500).json({ message: 'Error server.' });
   }
 });
 
-// Endpoint untuk mendapatkan data HISTORIS (misal: 5 data terakhir)
 app.get('/api/historical', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM sensor_data ORDER BY id DESC LIMIT 5');
@@ -73,6 +73,48 @@ app.get('/api/historical', async (req, res) => {
   }
 });
 
+app.get('/api/sensor-data', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || '';
+    const offset = (page - 1) * limit;
+
+    let countQuery = 'SELECT COUNT(*) as total FROM sensor_data';
+    let dataQuery = 'SELECT * FROM sensor_data';
+    
+    const queryParams = [];
+    
+    if (search) {
+      const searchQuery = ' WHERE status LIKE ? OR tekanan LIKE ?';
+      countQuery += searchQuery;
+      dataQuery += searchQuery;
+      queryParams.push(`%${search}%`, `%${search}%`);
+    }
+
+    dataQuery += ' ORDER BY id DESC LIMIT ? OFFSET ?';
+
+    const [totalRows] = await db.query(countQuery, queryParams);
+    const totalData = totalRows[0].total;
+    const totalPages = Math.ceil(totalData / limit);
+  
+    const [data] = await db.query(dataQuery, [...queryParams, limit, offset]);
+
+    res.json({
+      data: data,
+      pagination: {
+        currentPage: page,
+        totalPages: totalPages,
+        totalData: totalData
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching paginated data:', error);
+    res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+  }
+});
+
 app.post('/api/sensor-data', async (req, res) => {
   try {
     const { tekanan, suhu, ketebalan } = req.body;
@@ -81,8 +123,7 @@ app.post('/api/sensor-data', async (req, res) => {
       return res.status(400).json({ message: 'Data tidak lengkap.' });
     }
 
-    // --- Panggil API Fuzzy Logic Python ---
-    const fuzzyResponse = await fetch(fuzzyApiUrl, {
+    const fuzzyResponse = await fetch(`${fuzzyApiUrl}/predict`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tekanan, suhu, ketebalan })
@@ -94,19 +135,21 @@ app.post('/api/sensor-data', async (req, res) => {
 
     const predictionResult = await fuzzyResponse.json();
     const statusPrediksi = predictionResult.status_prediksi;
-    // ------------------------------------
+    const reasons = predictionResult.reasons;
 
-    // Masukkan data DAN hasil prediksi ke database
     const [result] = await db.query(
-      'INSERT INTO sensor_data (tekanan, suhu, ketebalan, status) VALUES (?, ?, ?, ?)',
-      [tekanan, suhu, ketebalan, statusPrediksi]
+      'INSERT INTO sensor_data (tekanan, suhu, ketebalan, status, reasons) VALUES (?, ?, ?, ?, ?)',
+      [tekanan, suhu, ketebalan, statusPrediksi, JSON.stringify(reasons)]
     );
 
     const [newDataRows] = await db.query('SELECT * FROM sensor_data WHERE id = ?', [result.insertId]);
+    const rawNewData = newDataRows[0];
+
     const newData = {
-        ...newDataRows[0],
-        ketebalan: mapKetebalanToString(newDataRows[0].ketebalan),
-        time: new Date(newDataRows[0].timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+        ...rawNewData,
+        ketebalan: mapKetebalanToString(rawNewData.ketebalan), // <-- PERBAIKAN DI SINI
+        reasons: JSON.parse(rawNewData.reasons || '[]'),
+        time: new Date(rawNewData.timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
     };
 
     io.emit('newData', newData);
@@ -119,6 +162,77 @@ app.post('/api/sensor-data', async (req, res) => {
   }
 });
 
+app.get('/api/weekly-summary', async (req, res) => {
+  try {
+    // Query untuk mengambil rata-rata dan distribusi status 7 hari terakhir
+    const query = `
+      SELECT 
+        AVG(tekanan) as avgTekanan, 
+        AVG(suhu) as avgSuhu,
+        status, 
+        COUNT(status) as count 
+      FROM sensor_data 
+      WHERE timestamp >= NOW() - INTERVAL 7 DAY 
+      GROUP BY status;
+    `;
+
+    const [rows] = await db.query(query);
+
+    if (rows.length === 0) {
+      return res.json({
+        avgTekanan: 0,
+        avgSuhu: 0,
+        statusDistribution: []
+      });
+    }
+
+    // Kalkulasi rata-rata keseluruhan
+    const totalCount = rows.reduce((sum, row) => sum + row.count, 0);
+    const totalTekanan = rows.reduce((sum, row) => sum + (row.avgTekanan * row.count), 0);
+    const totalSuhu = rows.reduce((sum, row) => sum + (row.avgSuhu * row.count), 0);
+    
+    const overallAvgTekanan = totalCount > 0 ? totalTekanan / totalCount : 0;
+    const overallAvgSuhu = totalCount > 0 ? totalSuhu / totalCount : 0;
+
+    // Format data untuk chart di frontend
+    const statusDistribution = rows.map(row => ({
+      name: row.status,
+      value: row.count,
+      // Berikan warna yang konsisten untuk chart
+      fill: row.status === 'Baik' ? '#22c55e' : (row.status === 'Sedang' ? '#f59e0b' : '#ef4444')
+    }));
+
+    res.json({
+      avgTekanan: parseFloat(overallAvgTekanan.toFixed(1)),
+      avgSuhu: parseFloat(overallAvgSuhu.toFixed(1)),
+      statusDistribution: statusDistribution
+    });
+
+  } catch (error) {
+    console.error('Error fetching weekly summary:', error);
+    res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+  }
+});
+
+app.post('/api/simulate', async (req, res) => {
+  try {
+    const { tekanan, suhu, ketebalan } = req.body;
+    const response = await fetch(`${fuzzyApiUrl}/simulate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tekanan, suhu, ketebalan })
+    });
+    if (!response.ok) {
+        throw new Error('Gagal mendapatkan hasil simulasi dari service fuzzy.');
+    }
+    const simulationResult = await response.json();
+    res.json(simulationResult);
+  } catch (error) {
+    console.error('Error pada endpoint simulasi:', error);
+    res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+  }
+});
+
 io.on('connection', (socket) => {
   console.log('User terhubung:', socket.id);
   socket.on('disconnect', () => {
@@ -127,6 +241,6 @@ io.on('connection', (socket) => {
 });
 
 // Menjalankan server
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Server berjalan di http://localhost:${port}`);
 });
