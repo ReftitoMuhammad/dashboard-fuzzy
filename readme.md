@@ -34,6 +34,8 @@ dashboard-fuzzy/
 │   ├── src/
 │   ├── public/
 │   └── vite.config.js
+├── logic/                # Logika Fuzzy
+|   ├── app.py
 └── README.md
 ```
 
