@@ -97,18 +97,6 @@ PORT=5000
 
 ---
 
-## 🙌 Kontribusi
-
-Pull request sangat diterima! Silakan fork proyek ini dan ajukan PR jika ingin menambahkan fitur atau perbaikan bug.
-
----
-
-## 👨‍💼 Author
-
-Made with ❤️ by [Reftito Muhammad](https://github.com/ReftitoMuhammad)
-
----
-
 ## 📄 License
 
 MIT License
